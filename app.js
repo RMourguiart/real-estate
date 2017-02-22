@@ -13,74 +13,97 @@ app.set( 'view engine', 'ejs' );
 app.use( '/assets', express.static( 'assets' ) );
 
 
-/*
-{
-	"title": "Example Schema",
-	"type": "object",
-	"properties": {
-		"firstName": {
-			"type": "string"
-		},
-		"lastName": {
-			"type": "string"
-		},
-		"age": {
-			"description": "Age in years",
-			"type": "integer",
-			"minimum": 0
-		}
-	},
-	"required": ["firstName", "lastName"]
-}*/
 
+//Schéma JSON to stock the values of LBC ad Meilleur Agent 
+var data = {
+    title: "Example Schema",
+    price: 0,
+    surface: 0,
+    type: "",
+    city: '',
+    zipCode: 0,
+    priceMSquare: 0,
+};
 
-
-function callLeboncoin() {
-    var url = 'https://www.leboncoin.fr/ventes_immobilieres/968817200.htm?ca=12_s'
-
-    request( url, function ( error, response, html ) {
-        if ( !error && response.statusCode == 200 ) {
-            const $ = cheerio.load( html )
-
-            const lbcDataArray = $( 'section.properties span.value' )
-
-            let lbcData = {
-                price: parseInt( $( lbcDataArray.get( 0 ) ).text().replace( /\s/g, '' ), 10 ),
-                city: $( lbcDataArray.get( 1 ) ).text().trim().toLowerCase().replace( /\_|\s/g, '-' ),
-                type: $( lbcDataArray.get( 2 ) ).text().trim().toLowerCase(),
-                surface: parseInt( $( lbcDataArray.get( 4 ) ).text().replace( /\s/g, '' ), 10 )
-                //squarePrice: price / surface
-            }
-            console.log( lbcData )
-            /*res.render( 'home', {
-                message2: price,
-                message3: city,
-                message4: type,
-                message5: surface
-            })*/
-        }
-        else {
-            console.log( error )
-        }
-    })
+var dataMA = {
+    meanPriceMA: 0,
+    conclusion: "",
 }
-
-
 
 
 //makes the server respond to the '/' route and serving the 'home.ejs' template in the 'views' directory
 app.get( '/', function ( req, res ) {
 
-
     var url = req.query.urlLBC
 
-    //console.log( req.query )
-    callLeboncoin();
+    request( url, function ( error, response, body ) {
+        if ( !error && response.statusCode == 200 ) {
 
-    res.render( 'home', {
-        message: url
+            var $ = cheerio.load( body )
 
-    });
+            // if there are no mistakes in the request, we stock the values in data
+            data = {
+                price: parseInt( $( lbcDataArray.get( 0 ) ).text().replace( /\s/g, '' ), 10 ),
+                city: $( lbcDataArray.get( 1 ) ).text().trim().toLowerCase().replace( /\_|\s/g, '-' ).split( ' ' )[0],
+                zipCode: $( lbcDataArray.get( 1 ) ).text().trim().toLowerCase().replace( /\_|\s/g, '-' ).split( ' ' )[1],
+                type: $( lbcDataArray.get( 2 ) ).text().trim().toLowerCase(),
+                surface: parseInt( $( lbcDataArray.get( 4 ) ).text().replace( /\s/g, '' ), 10 ),
+                priceMSquare: prix / surface
+
+            }
+        }
+        else {
+            console.log( error )
+        }
+    })
+
+    request( 'https://www.meilleursagents.com/prix-immobilier/' + data.city.toLowerCase() + '-' + data.codePostal, function ( error, response, body ) {
+        if ( !error && response.statusCode == 200 ) {
+
+            const $ = cheerio.load( body )
+
+            // we are looking for the mean ^rice for the good type of goods
+            if ( data.type = "MAISON" ) {
+                dataMA = {
+                    meanPriceMA: parseInt( $( lmaDataArray.get( 0 ) ).text().replace( /\s/g, '' ), 10 ),
+                }
+            }
+            if ( data.type = "APPARTEMENT" ) {
+                dataMA = {
+                    meanPriceMA: parseInt( $( lmaDataArray.get( 1 ) ).text().trim().toLowerCase().replace( /\_|\s/g, '-' ) ),
+                }
+            }
+            if ( data.type = "LOCATION" ) {
+                dataMA = {
+                    meanPriceMA: parseInt( $( lmaDataArray.get( 2 ) ).text().trim().toLowerCase() ),
+                }
+            }
+
+            // we compare the values staocker in data and dataMA to find if it's a good deal or not
+            if ( data.priceMSquare < dataMA.meanPriceMA ) {
+                dataMA.conclusion = "C'est une bonne affaire ! Renseignez-vous !"
+            }
+            else {
+                dataMA.conclusion = "Ce n'est pas une bonne affaire !"
+            }
+        }
+
+
+        else {
+            console.log( error )
+        }
+
+        // We print in the home page all the data and the conclusion of the comparison        
+        res.render( 'home', {
+            message2: data.price,
+            message3: data.city,
+            message4: data.zipCode,
+            message5: data.type,
+            message6: data.surface,
+            message7: dataMa.meanPriceMA,
+            message8: dataMa.conclusion,
+        });
+    })
 });
 
 
@@ -88,38 +111,3 @@ app.get( '/', function ( req, res ) {
 app.listen( 3000, function () {
     console.log( 'App listening on port 3000!' );
 });
-
-
-function callLeMeilleurAgent() {
-    var url = 'https://www.meilleursagents.com/prix-immobilier/paris-75000/'
-
-    request( url, function ( error, response, html ) {
-        if ( !error && response.statusCode == 200 ) {
-            const $ = cheerio.load( html )
-
-            const lmaDataArray = $( 'section.properties span.value' )
-
-            let lmaData = {
-                meanPriceHouse: parseInt( $( lmaDataArray.get( 0 ) ).text().replace( /\s/g, '' ), 10 ),
-                meanPriceAppart: parseInt( $( lmaDataArray.get( 1 ) ).text().trim().toLowerCase().replace( /\_|\s/g, '-' ) ),
-                meanPriceRent: parseInt( $( lmaDataArray.get( 2 ) ).text().trim().toLowerCase() ),
-            }
-            console.log( lmaData )
-        }
-        else {
-            console.log( error )
-        }
-    })
-}
-
-
-/*function calllemeilleuragent() {
-    var url2 = 'https://www.meilleursagents.com/prix-immobilier/'
-    request( url2, lbcData.city.toLowerCase() + '-' + lbcData.codePostal, function ( error, response, body ) {
-                if ( !error && response.statusCode == 200 ) {
-}   
-*/
-
-
-
-
